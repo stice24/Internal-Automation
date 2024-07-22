@@ -12,35 +12,34 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.Iterator;
 
-public class OneTrustDataCollector {
 
+public class OneTrustDataCollector {
+    Scanner scanner = new Scanner(System.in);
     private static final String API_KEY = "get_api_key";
-    private static final String BASE_URL = "https://api.onetrust.com"; //placeholder for now
-    private static final String EXCEL_FILE_PATH = "/mnt/data/CMP Metrics Jan-Mar 2024.xlsx"; //eventually, switch to user input
+    private static final String BASE_URL = "https://api.onetrust.com"; 
+    private static final String EXCEL_FILE_PATH = Scanner.getNext(); 
 
     public static void main(String[] args) {
         try {
             FileInputStream fis = new FileInputStream(EXCEL_FILE_PATH);
             Workbook workbook = new XSSFWorkbook(fis);
-            Sheet sheet = workbook.getSheetAt(0); //figure out which sheets need to be edited in which order
-            //e.g. different protocol for top 20 etc. --> can most likely navigate via for-loop
+            Sheet sheet = workbook.getSheetAt(0); 
 
-            Iterator<Row> rowIterator = sheet.iterator(); //set iterator on row by row
-            while (rowIterator.hasNext()) { //outer while, going through each row
+            Iterator<Row> rowIterator = sheet.iterator(); 
+            while (rowIterator.hasNext()) { 
                 Row row = rowIterator.next();
                 for (Cell cell : row) {
-                    if (isGreyCell(cell)) { //skip over grey cells (pre-processed)
+                    if (isGreyCell(cell)) { 
                         continue;
                     }
                     int col = cell.getColumnIndex();
-                    if(col == 3 || col == 7 || col == 8 || col == 12 || col == 13){ //skip over pre-calculated cells ... NOTE: make sure columns are 0-indexed
+                    if(col == 3 || col == 7 || col == 8 || col == 12 || col == 13){ 
                         continue;
                     }
                     String geo = getGeoFromColumn(col);
                     String opt = getOptFromColumn(col);
-                    String sourceName = getSourceNameFromRow(row); //source is in first column
-                    JSONObject data = fetchData(sourceName, geo, "2024-01-01", "2024-03-31"); // eventually also make dates a variable that can be changed according to user input
-                                                                                              //NOTE: find somewhere to do this already within the Excel file
+                    String sourceName = getSourceNameFromRow(row); 
+                    JSONObject data = fetchData(sourceName, geo, "2024-01-01", "2024-03-31"); 
                     fillDataInCell(cell, data);
                 }
             }
@@ -54,17 +53,18 @@ public class OneTrustDataCollector {
         }
     }
 
+
     private static boolean isGreyCell(Cell cell) {
-        //  logic to check if the cell is grey
         CellStyle style = cell.getCellStyle();
         if (style.getFillForegroundColorColor() != null) {
-            return style.getFillForegroundColorColor().getARGBHex().equals("FF808080"); //make sure color setting is in correct range
+            return style.getFillForegroundColorColor().getARGBHex().equals("FF808080"); 
         }
         return false;
     }
 
+
     private static String getGeoFromColumn(int columnIndex) {
-        //  we can switch-statement on the column value because
+       
         switch (columnIndex) {
             case 4: return "EU";
             case 5: return "EU";
@@ -79,40 +79,45 @@ public class OneTrustDataCollector {
     
 
     private static String getSourceNameFromRow(Row row) {
-        Cell sourceCell = row.getCell(0); // source name is in the first column
+        Cell sourceCell = row.getCell(0); 
         return sourceCell.getStringCellValue();
     }
 
+
     private static JSONObject fetchData(String sourceName, String geo, String startDate, String endDate) {
+
         try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
-            String endpoint = String.format("/data?sourceName=%s&geo=%s&startDate=%s", sourceName, geo, startDate, endDate); //create request endpoint with sheet data
+            String endpoint = String.format("/data?sourceName=%s&geo=%s&startDate=%s", sourceName, geo, startDate, endDate); 
             HttpGet request = new HttpGet(BASE_URL + endpoint);
-            request.addHeader("Authorization", "Bearer " + API_KEY); //actual api request beyond setup
+            request.addHeader("Authorization", "Bearer " + API_KEY); 
             request.addHeader("Content-Type", "application/json");
 
             HttpResponse response = httpClient.execute(request);
-            if (response.getStatusLine().getStatusCode() == 200) { //if valid request
-                String jsonResponse = EntityUtils.toString(response.getEntity()); //this is where we return the fetch
+            if (response.getStatusLine().getStatusCode() == 200) { 
+                String jsonResponse = EntityUtils.toString(response.getEntity()); 
                 return new JSONObject(jsonResponse);
             } else {
                 System.err.println("Failed to fetch data: " + response.getStatusLine().getStatusCode());
                 return null;
             }
+
         } catch (IOException e) {
             e.printStackTrace();
             return null;
         }
+
     }
 
-    private static void fillDataInCell(Cell cell, JSONObject data) {   //change this
+
+    private static void fillDataInCell(Cell cell, JSONObject data) {  
        if (data != null) {
+
         try {
-            // this is, assuming the data JSON contains optIn, optOut, and notGiven keys //DEPENDENT on what OT provides
             double optIn = data.getDouble("optIn");
             double optOut = data.getDouble("optOut");
             double notGiven = data.getDouble("notGiven");
 
-            // Depending on the column, set the corresponding value
+           
             switch (cell.getColumnIndex()) {
                 case 4: // Column for optIn
                     cell.setCellValue(optIn);
@@ -135,9 +140,11 @@ public class OneTrustDataCollector {
                 default:
                     System.err.println("Unexpected column index: " + cell.getColumnIndex());
             }
+
         } catch (Exception e) {
             e.printStackTrace();
         }
+
     }
     }
 
